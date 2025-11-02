@@ -53,7 +53,7 @@ struct fill_selection : champsim::modules::replacement {
 
   void update_replacement_state(uint32_t, long, long, champsim::address, champsim::address, access_type, bool) { ::update_interface_discerner[intern_] = 1; }
 
-  void replacement_cache_fill(uint32_t, long, long, champsim::address, champsim::address, champsim::address, access_type)
+  void replacement_cache_fill(uint32_t, long, long, champsim::address, champsim::address, champsim::address, access_type, double)
   {
     ::fill_override_interface_discerner[intern_] = 1;
   }

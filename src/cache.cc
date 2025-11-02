@@ -21,6 +21,7 @@
 #include <cmath>
 #include <iomanip>
 #include <numeric>
+#include <vector>
 #include <fmt/core.h>
 
 #include "bandwidth.h"
@@ -40,7 +41,7 @@ CACHE::CACHE(CACHE&& other)
       cpu(other.cpu), NAME(std::move(other.NAME)), NUM_SET(other.NUM_SET), NUM_WAY(other.NUM_WAY), MSHR_SIZE(other.MSHR_SIZE), PQ_SIZE(other.PQ_SIZE),
       HIT_LATENCY(other.HIT_LATENCY), FILL_LATENCY(other.FILL_LATENCY), OFFSET_BITS(other.OFFSET_BITS), block(std::move(other.block)), MAX_TAG(other.MAX_TAG),
       MAX_FILL(other.MAX_FILL), prefetch_as_load(other.prefetch_as_load), match_offset_bits(other.match_offset_bits), virtual_prefetch(other.virtual_prefetch),
-      pref_activate_mask(std::move(other.pref_activate_mask)),
+      pref_activate_mask(std::move(other.pref_activate_mask)), base_access_seen(std::move(other.base_access_seen)),
 
       sim_stats(std::move(other.sim_stats)), roi_stats(std::move(other.roi_stats)),
 
@@ -79,6 +80,7 @@ auto CACHE::operator=(CACHE&& other) -> CACHE&
   this->match_offset_bits = other.match_offset_bits;
   this->virtual_prefetch = other.virtual_prefetch;
   this->pref_activate_mask = std::move(other.pref_activate_mask);
+  this->base_access_seen = std::move(other.base_access_seen);
 
   this->sim_stats = std::move(other.sim_stats);
   this->roi_stats = std::move(other.roi_stats);
@@ -122,6 +124,7 @@ CACHE::mshr_type CACHE::mshr_type::merge(mshr_type predecessor, mshr_type succes
   retval.instr_depend_on_me = merged_instr;
   retval.to_return = merged_return;
   retval.data_promise = predecessor.data_promise;
+  retval.pmc = predecessor.pmc;
 
   if constexpr (champsim::debug_print) {
     if (successor.type == access_type::PREFETCH) {
@@ -220,7 +223,7 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
   auto metadata_thru = impl_prefetcher_cache_fill(module_address(fill_mshr), get_set_index(fill_mshr.address), way_idx,
                                                   (fill_mshr.type == access_type::PREFETCH), evicting_address, fill_mshr.data_promise->pf_metadata);
   impl_replacement_cache_fill(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, module_address(fill_mshr), fill_mshr.ip, evicting_address,
-                              fill_mshr.type);
+                              fill_mshr.type, fill_mshr.pmc);
 
   if (way != set_end) {
     if (way->valid && way->prefetch) {
@@ -416,6 +419,11 @@ long CACHE::operate()
 {
   long progress{0};
 
+  if (std::size(base_access_seen) < NUM_CPUS)
+    base_access_seen.assign(NUM_CPUS, false);
+  else
+    std::fill(std::begin(base_access_seen), std::end(base_access_seen), false);
+
   auto is_ready = [time = current_time](const auto& entry) {
     return entry.event_cycle <= time;
   };
@@ -522,7 +530,9 @@ long CACHE::operate()
                stash_bandwidth_consumed, std::size(translation_stash), channels_bandwidth_consumed, pq_bandwidth_consumed, initiate_tag_bw.amount_remaining());
   }
 
-  return progress + fill_bw.amount_consumed() + initiate_tag_bw.amount_consumed() + tag_check_bw.amount_consumed();
+  auto total_progress = progress + fill_bw.amount_consumed() + initiate_tag_bw.amount_consumed() + tag_check_bw.amount_consumed();
+  update_outstanding_pmc();
+  return total_progress;
 }
 
 // LCOV_EXCL_START exclude deprecated function
@@ -826,16 +836,52 @@ long CACHE::impl_find_victim(uint32_t triggering_cpu, uint64_t instr_id, long se
 void CACHE::impl_update_replacement_state(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip,
                                           champsim::address victim_addr, access_type type, bool hit) const
 {
+  record_base_access(triggering_cpu);
   repl_module_pimpl->impl_update_replacement_state(triggering_cpu, set, way, full_addr, ip, victim_addr, type, hit);
 }
 
 void CACHE::impl_replacement_cache_fill(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip,
-                                        champsim::address victim_addr, access_type type) const
+                                        champsim::address victim_addr, access_type type, double pmc) const
 {
-  repl_module_pimpl->impl_replacement_cache_fill(triggering_cpu, set, way, full_addr, ip, victim_addr, type);
+  repl_module_pimpl->impl_replacement_cache_fill(triggering_cpu, set, way, full_addr, ip, victim_addr, type, pmc);
 }
 
 void CACHE::impl_replacement_final_stats() const { repl_module_pimpl->impl_replacement_final_stats(); }
+
+void CACHE::record_base_access(uint32_t triggering_cpu) const
+{
+  if (std::size(base_access_seen) < NUM_CPUS)
+    base_access_seen.assign(NUM_CPUS, false);
+
+  if (triggering_cpu < base_access_seen.size())
+    base_access_seen[triggering_cpu] = true;
+}
+
+void CACHE::update_outstanding_pmc()
+{
+  if (std::size(base_access_seen) < NUM_CPUS)
+    base_access_seen.assign(NUM_CPUS, false);
+
+  std::vector<std::vector<mshr_type*>> outstanding(NUM_CPUS);
+  for (auto& entry : MSHR) {
+    if (entry.cpu < outstanding.size())
+      outstanding[entry.cpu].push_back(&entry);
+  }
+
+  for (std::size_t cpu_id = 0; cpu_id < outstanding.size(); ++cpu_id) {
+    auto& entries = outstanding[cpu_id];
+    if (entries.empty())
+      continue;
+
+    const bool saw_access = cpu_id < base_access_seen.size() && base_access_seen[cpu_id];
+    if (saw_access)
+      continue;
+
+    const double increment = 1.0 / static_cast<double>(entries.size());
+    for (auto* entry : entries)
+      entry->pmc += increment;
+  }
+}
 
 void CACHE::initialize()
 {
