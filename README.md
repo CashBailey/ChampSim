@@ -32,6 +32,37 @@ $ ./config.sh <configuration file>
 $ make
 ```
 
+If you are unsure which configuration to start with, running `./config.sh champsim_config.json` mirrors the default example shipped with the repository.
+
+## Example: build and run the CARE replacement policy
+
+ChampSim ships with the [CARE](replacement/care) cache replacement policy. The configuration script accepts partial JSON, so you can create a small configuration file that only overrides the last-level cache replacement algorithm:
+
+```
+$ cat <<'EOF' > care_config.json
+{
+  "LLC": {
+    "replacement": "care"
+  }
+}
+EOF
+```
+
+Generate the build files and compile the simulator:
+
+```
+$ ./config.sh care_config.json
+$ make -j$(nproc)
+```
+
+Once the build finishes, run ChampSim on a trace with the usual command-line switches:
+
+```
+$ bin/champsim --warmup-instructions 200000000 --simulation-instructions 500000000 /path/to/trace.champsimtrace.xz
+```
+
+Any binary produced after configuring with `care_config.json` uses CARE for the LLC replacement policy.
+
 # Download DPC-3 trace
 
 Traces used for the 3rd Data Prefetching Championship (DPC-3) can be found here. (https://dpc3.compas.cs.stonybrook.edu/champsim-traces/speccpu/) A set of traces used for the 2nd Cache Replacement Championship (CRC-2) can be found from this link. (http://bit.ly/2t2nkUj)
