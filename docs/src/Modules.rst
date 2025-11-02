@@ -251,7 +251,7 @@ A replacement policy module may implement five functions.
 
    :return: The function should return the way index that should be evicted, or ``this->NUM_WAY`` to indicate that a bypass should occur.
 
-.. cpp:function:: void replacement_cache_fill(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip, champsim::address victim_addr, access_type type)
+.. cpp:function:: void replacement_cache_fill(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip, champsim::address victim_addr, access_type type, double pmc)
 
     This function is called when a block is filled in the cache.
     It is called with the same timing as ``find_victim()``, but is additionally called when filling an invalid way.
@@ -276,6 +276,7 @@ A replacement policy module may implement five functions.
      * ``access_type::PREFETCH``
      * ``access_type::WRITE``
      * ``access_type::TRANSLATION``
+   :param pmc: The measured pure miss contribution for the miss that filled the block. This value is 0.0 for fills that do not originate from an MSHR entry.
 
 .. cpp:function:: void update_replacement_state(uint32_t triggering_cpu, long set, long way, champsim::address addr, champsim::address ip, access_type type, bool hit)
 .. cpp:function:: void update_replacement_state(uint32_t triggering_cpu, long set, long way, champsim::address addr, champsim::address ip, champsim::address victim_addr, access_type type, bool hit)
