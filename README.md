@@ -32,6 +32,8 @@ $ ./config.sh <configuration file>
 $ make
 ```
 
+If you are unsure which configuration to start with, running `./config.sh champsim_config.json` mirrors the default example shipped with the repository.
+
 # Download DPC-3 trace
 
 Traces used for the 3rd Data Prefetching Championship (DPC-3) can be found here. (https://dpc3.compas.cs.stonybrook.edu/champsim-traces/speccpu/) A set of traces used for the 2nd Cache Replacement Championship (CRC-2) can be found from this link. (http://bit.ly/2t2nkUj)
