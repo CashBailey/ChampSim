@@ -108,6 +108,8 @@ public:
     std::vector<uint64_t> instr_depend_on_me{};
     std::vector<std::deque<response_type>*> to_return{};
 
+    double pmc = 0.0;
+
     mshr_type(const tag_lookup_type& req, champsim::chrono::clock::time_point _time_enqueued);
     static mshr_type merge(mshr_type predecessor, mshr_type successor);
   };
@@ -311,9 +313,12 @@ public:
   void impl_update_replacement_state(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip,
                                      champsim::address victim_addr, access_type type, bool hit) const;
   void impl_replacement_cache_fill(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip,
-                                   champsim::address victim_addr, access_type type) const;
+                                   champsim::address victim_addr, access_type type, double pmc) const;
   void impl_replacement_final_stats() const;
   // NOLINTEND(readability-make-member-function-const)
+
+  void record_base_access(uint32_t triggering_cpu) const;
+  void update_outstanding_pmc();
 
   template <typename... Ps, typename... Rs>
   explicit CACHE(champsim::cache_builder<champsim::cache_builder_module_type_holder<Ps...>, champsim::cache_builder_module_type_holder<Rs...>> b)
@@ -323,12 +328,15 @@ public:
         prefetch_as_load(b.m_pref_load), match_offset_bits(b.m_wq_full_addr), virtual_prefetch(b.m_va_pref), pref_activate_mask(b.m_pref_act_mask),
         pref_module_pimpl(std::make_unique<prefetcher_module_model<Ps...>>(this)), repl_module_pimpl(std::make_unique<replacement_module_model<Rs...>>(this))
   {
+    base_access_seen.assign(NUM_CPUS, false);
   }
 
   CACHE(const CACHE&) = delete;
   CACHE(CACHE&&);
   CACHE& operator=(const CACHE&) = delete;
   CACHE& operator=(CACHE&&);
+
+  mutable std::vector<bool> base_access_seen{};
 };
 
 template <typename... Ps>
