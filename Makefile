@@ -28,6 +28,15 @@ override LDLIBS   += -llzma -lz -lbz2
 
 .PHONY: all clean compile_commands compile_commands_clean configclean test pytest maketest
 
+# If the user has not generated a configuration yet, provide a helpful error
+ifeq ($(wildcard _configuration.mk),)
+ifneq ($(filter clean configclean compile_commands_clean,$(MAKECMDGOALS)),)
+# Allow housekeeping targets to run without a configuration
+else
+$(error No ChampSim configuration detected. Run ./config.sh <configuration file> before invoking make.)
+endif
+endif
+
 test_main_name=test/bin/000-test-main
 build_ids:=
 executable_name:=
