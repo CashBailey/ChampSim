@@ -16,9 +16,14 @@ override REPLACEMENT_ROOT += $(addsuffix /replacement,$(MODULE_ROOT))
 
 # vcpkg integration
 TRIPLET_DIR = $(patsubst %/,%,$(firstword $(filter-out $(ROOT_DIR)/vcpkg_installed/vcpkg/, $(wildcard $(ROOT_DIR)/vcpkg_installed/*/))))
-override CPPFLAGS += -I$(OBJ_ROOT)
+CATCH_HEADER_ROOT := $(ROOT_DIR)/third_party/catch2
+CLI_HEADER_ROOT := $(ROOT_DIR)/third_party/cli11/include
+FMT_HEADER_ROOT := $(ROOT_DIR)/third_party/fmt/include
+JSON_HEADER_ROOT := $(ROOT_DIR)/third_party
+
+override CPPFLAGS += -I$(OBJ_ROOT) -I$(FMT_HEADER_ROOT) -I$(CATCH_HEADER_ROOT) -I$(JSON_HEADER_ROOT) -I$(CLI_HEADER_ROOT) -DFMT_HEADER_ONLY
 override LDFLAGS  += -L$(TRIPLET_DIR)/lib -L$(TRIPLET_DIR)/lib/manual-link
-override LDLIBS   += -lCLI11 -llzma -lz -lbz2 -lfmt
+override LDLIBS   += -llzma -lz -lbz2
 
 .PHONY: all clean compile_commands compile_commands_clean configclean test pytest maketest
 
@@ -115,7 +120,10 @@ configclean: clean compile_commands_clean
 reverse = $(if $(wordlist 2,2,$(1)),$(call reverse,$(call tail,$1)) $(firstword $(1)),$(1))
 
 absolute.options:
-	@echo "-I$(realpath inc) -isystem $(realpath $(TRIPLET_DIR)/include)" > $@
+	@echo "-I$(realpath inc)" > $@
+	@if [ -n "$(TRIPLET_DIR)" ] && [ -d "$(TRIPLET_DIR)/include" ]; then \
+		printf ' -isystem %s' "$(realpath $(TRIPLET_DIR)/include)" >> $@; \
+	fi
 
 attach_options = $(call reverse, $(addprefix @,$(filter %.options, $^)))
 

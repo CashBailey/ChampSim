@@ -24,6 +24,7 @@ struct repl_fill_interface {
   champsim::address ip;
   champsim::address victim_addr;
   access_type type;
+  double pmc;
 };
 } // namespace test
 
