@@ -20,6 +20,7 @@ CATCH_HEADER_ROOT := $(ROOT_DIR)/third_party/catch2
 CLI_HEADER_ROOT := $(ROOT_DIR)/third_party/cli11/include
 FMT_HEADER_ROOT := $(ROOT_DIR)/third_party/fmt/include
 JSON_HEADER_ROOT := $(ROOT_DIR)/third_party
+CATCH2_LIBS ?=
 
 override CPPFLAGS += -I$(OBJ_ROOT) -I$(FMT_HEADER_ROOT) -I$(CATCH_HEADER_ROOT) -I$(JSON_HEADER_ROOT) -I$(CLI_HEADER_ROOT) -DFMT_HEADER_ONLY
 override LDFLAGS  += -L$(TRIPLET_DIR)/lib -L$(TRIPLET_DIR)/lib/manual-link
@@ -129,13 +130,13 @@ attach_options = $(call reverse, $(addprefix @,$(filter %.options, $^)))
 
 # All .o files should be made like .cc files
 define obj_recipe
-	$(CXX) $(attach_options) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $(filter %.cc, $^)
+        $(CXX) $(attach_options) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $(filter %.cc %.cpp, $^)
 endef
 
 # All .d files should be preprocessed only
 DEPFLAGS = -MM -MT $@ -MT $(@:.d=.o)
 define dep_recipe
-	$(CXX) $(attach_options) $(DEPFLAGS) $(CPPFLAGS) -MF $@ $(filter %.cc, $^)
+        $(CXX) $(attach_options) $(DEPFLAGS) $(CPPFLAGS) -MF $@ $(filter %.cc %.cpp, $^)
 endef
 
 ### Module support
@@ -259,6 +260,13 @@ $(OBJ_ROOT)/test/%.o: $$(test_nonmain_prereqs) | $(@:$(OBJ_ROOT)/%.o=$(DEP_ROOT)
 $(DEP_ROOT)/test/%.d: $$(test_nonmain_prereqs) | $(generated_files) $$(dir $$@)
 	$(dep_recipe)
 
+catch2_support_obj = $(OBJ_ROOT)/catch2/catch_amalgamated.o
+catch2_support_prereqs = $(CATCH_HEADER_ROOT)/catch_amalgamated.cpp $(base_options)
+$(catch2_support_obj): $$(catch2_support_prereqs) | $(@:$(OBJ_ROOT)/%.o=$(DEP_ROOT)/%.d) $$(dir $$@)
+	$(obj_recipe)
+$(DEP_ROOT)/catch2/catch_amalgamated.d: $$(catch2_support_prereqs) | $(generated_files) $$(dir $$@)
+	$(dep_recipe)
+
 # Connect module objects to their sources
 base_module_prereqs = $(call get_module_src_dir,$(@D))/$(basename $(@F)).cc $(call maybe_legacy_file,$(call get_module_src_dir,$@),$(if $(filter-out %/legacy_bridge,$(basename $@)),legacy.options,function_patch.options)) module.options $(base_options)
 $(OBJ_ROOT)/modules/%.o: $$(base_module_prereqs) | $(@:$(OBJ_ROOT)/%.o=$(DEP_ROOT)/%.d) $$(dir $$@)
@@ -269,7 +277,7 @@ $(DEP_ROOT)/modules/%.d: $$(base_module_prereqs) | $(generated_files) $$(dir $$@
 $(sort $(OBJ_ROOT)/ $(DEP_ROOT)/ $(BIN_ROOT)/ test/bin/):
 	mkdir -p $@
 
-$(OBJ_ROOT)/test/ $(OBJ_ROOT)/modules/: | $(OBJ_ROOT)/
+$(OBJ_ROOT)/catch2/ $(OBJ_ROOT)/test/ $(OBJ_ROOT)/modules/: | $(OBJ_ROOT)/
 	mkdir $@
 
 $(OBJ_ROOT)/test/%/: | $(OBJ_ROOT)/test/
@@ -283,7 +291,7 @@ ifeq (,$(DEP_ROOT))
 	$(error The value of DEP_ROOT cannot be empty)
 endif
 
-$(DEP_ROOT)/test/ $(DEP_ROOT)/modules/: | $(DEP_ROOT)/
+$(DEP_ROOT)/catch2/ $(DEP_ROOT)/test/ $(DEP_ROOT)/modules/: | $(DEP_ROOT)/
 	mkdir $@
 
 $(DEP_ROOT)/test/%/: | $(DEP_ROOT)/test/
@@ -296,10 +304,10 @@ endif
 # Give the test executable some additional options
 $(test_main_name): override CPPFLAGS += -DCHAMPSIM_TEST_BUILD
 $(test_main_name): override CXXFLAGS += -g3 -Og
-$(test_main_name): override LDLIBS += -lCatch2Main -lCatch2
+$(test_main_name): override LDLIBS += $(CATCH2_LIBS)
 
 # Associate objects with executables
-$(test_main_name): $(call get_base_objs,TEST) $(test_base_objs) $(base_module_objs) $(nonbase_module_objs) | $$(dir $$@)
+$(test_main_name): $(call get_base_objs,TEST) $(test_base_objs) $(catch2_support_obj) $(base_module_objs) $(nonbase_module_objs) | $$(dir $$@)
 $(executable_name): $(call get_base_objs,$$(build_id)) $(base_module_objs) $(nonbase_module_objs) | $$(dir $$@)
 
 # Link main executables
@@ -340,7 +348,7 @@ pytest:
 	PYTHONPATH=$(PYTHONPATH):$(ROOT_DIR) python3 -m unittest discover -v --start-directory='test/python'
 
 ifeq (,$(filter clean compile_commands compile_commands_clean configclean pytest maketest, $(MAKECMDGOALS)))
--include $(patsubst $(OBJ_ROOT)/%.o,$(DEP_ROOT)/%.d,$(foreach build_id,TEST $(build_ids),$(call get_base_objs,$(build_id))) $(test_base_objs) $(base_module_objs))
+-include $(patsubst $(OBJ_ROOT)/%.o,$(DEP_ROOT)/%.d,$(foreach build_id,TEST $(build_ids),$(call get_base_objs,$(build_id))) $(test_base_objs) $(catch2_support_obj) $(base_module_objs))
 endif
 
 ifeq (maketest,$(findstring maketest,$(MAKECMDGOALS)))
