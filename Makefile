@@ -34,6 +34,7 @@ ifneq ($(filter clean configclean compile_commands_clean,$(MAKECMDGOALS)),)
 # Allow housekeeping targets to run without a configuration
 else
 $(error No ChampSim configuration detected. Run ./config.sh champsim_config.json (or your preferred configuration file) before invoking make. See README.md for details.)
+$(error No ChampSim configuration detected. Run ./config.sh <configuration file> before invoking make.)
 endif
 endif
 
