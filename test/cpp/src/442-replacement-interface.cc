@@ -27,10 +27,10 @@ struct update_state_collector : champsim::modules::replacement {
   }
 
   void replacement_cache_fill(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip, champsim::address victim_addr,
-                              access_type type)
+                              access_type type, double pmc)
   {
     auto cfc_it = ::replacement_cache_fill_collector.try_emplace(intern_);
-    cfc_it.first->second.push_back({triggering_cpu, set, way, full_addr, ip, victim_addr, type});
+    cfc_it.first->second.push_back({triggering_cpu, set, way, full_addr, ip, victim_addr, type, pmc});
   }
 };
 
