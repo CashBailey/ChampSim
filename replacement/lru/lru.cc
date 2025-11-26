@@ -125,11 +125,13 @@ uint8_t lru::select_epv(reuse_prediction reuse, cost_prediction cost, access_typ
 
 uint8_t lru::quantize(double pmc, double low, double high) const
 {
-  if (pmc < low)
+  if (pmc <= low)
     return low_pmcs_state;
-  if (pmc > high)
+  if (pmc >= high)
     return high_pmcs_state;
-  return 1;
+
+  const auto midpoint = (low + high) / 2.0;
+  return (pmc < midpoint) ? 1 : 2;
 }
 
 void lru::update_dtrm(bool costly)
