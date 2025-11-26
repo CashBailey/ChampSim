@@ -4,6 +4,14 @@ This guide shows how to clone this ChampSim fork and run simulations with the CA
 
 ## 1. Clone and set up dependencies
 
+
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar
+```
+
+
 ```bash
 # Clone the repository
 git clone https://github.com/ChampSim/ChampSim.git
@@ -11,8 +19,13 @@ cd ChampSim
 
 # Initialize submodules and install dependencies via vcpkg
 git submodule update --init
+
+./vcpkg/bootstrap-vcpkg.sh
+./vcpkg/vcpkg install
+=======
 vcpkg/bootstrap-vcpkg.sh
 vcpkg/vcpkg install
+
 ```
 
 ## 2. Configure ChampSim for CARE
