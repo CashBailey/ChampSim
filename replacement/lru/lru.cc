@@ -21,6 +21,18 @@ lru::lru(CACHE* cache)
       sampled_sets(static_cast<std::size_t>(cache->NUM_SET), false),
       sht(NUM_CPUS)
 {
+  // Initialize the SHT entries to a neutral state so the first few insertions do not
+  // bias the predictor toward either extreme reuse or cost. CARE uses 3-bit counters
+  // for RC and PD, so the midpoint provides a balanced starting prediction.
+  for (auto& cpu_table : sht) {
+    for (auto& entry : cpu_table) {
+      auto rc_mid = (entry.rc.maximum + entry.rc.minimum) / 2;
+      auto pd_mid = (entry.pd.maximum + entry.pd.minimum) / 2;
+      entry.rc = rc_mid;
+      entry.pd = pd_mid;
+    }
+  }
+
   std::vector<long> set_ids(static_cast<std::size_t>(num_sets));
   std::iota(set_ids.begin(), set_ids.end(), 0);
   std::mt19937_64 rng{1};
